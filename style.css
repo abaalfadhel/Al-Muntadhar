@@ -148,7 +148,7 @@ h1 { margin: 0; font: 700 clamp(40px, 7vw, 62px)/1.3 "Amiri", serif; }
 
 /* لوحة الإحصائيات */
 .stats { max-width: 1080px; margin: 32px auto 0; padding: 0 clamp(16px, 4vw, 32px); }
-.stats-inner { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 18px; background: var(--card); overflow: hidden; }
+.stats-inner { display: grid; grid-template-columns: repeat(2, 1fr); border: 1px solid var(--line); border-radius: 18px; background: var(--card); overflow: hidden; }
 .stat { padding: 20px 10px; text-align: center; display: flex; flex-direction: column; gap: 4px; }
 .stat + .stat { border-inline-start: 1px solid var(--line); }
 .stat b { font: 700 clamp(24px, 5vw, 34px)/1.1 "IBM Plex Sans Arabic", sans-serif; color: var(--accent); direction: ltr; font-variant-numeric: tabular-nums; }

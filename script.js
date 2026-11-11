@@ -3,7 +3,7 @@
 
   var CFG = window.MN_CONFIG || {};
   var API_URL = (CFG.API_URL || "").trim();
-  var BEAT_MS = (CFG.HEARTBEAT_MINUTES || 3) * 60 * 1000;
+  var BEAT_MS = Math.max(1000, Number(CFG.HEARTBEAT_SECONDS || 10) * 1000);
   var START_DATE = new Date(CFG.START_DATE || "2026-11-05T03:30:00+03:00");
   var LAUNCH_DATE = new Date(CFG.LAUNCH_DATE || "2027-02-12T03:30:00+03:00");
 
@@ -98,26 +98,39 @@
       .finally(function () { btn.disabled = false; });
   });
 
-  /* ===== عدّاد الزائرين: +1 عند الدخول ثم +1 كل 3 دقائق بقاء فعلي ===== */
+  /* ===== عدّاد الزائرين: +10 عند كل دخول/تحديث، ثم +10 كل 10 ثوانٍ من البقاء الفعلي ===== */
   function setStat(id, val) {
     var el = $(id);
     if (typeof val === "number") { el.textContent = nf.format(val); el.dataset.state = "ok"; }
     else { el.textContent = "—"; el.dataset.state = "off"; }
   }
-  function showStats(j) { setStat("st-total", j && j.total); setStat("st-unique", j && j.unique); setStat("st-today", j && j.today); }
+  function showStats(j) { setStat("st-total", j && j.total); setStat("st-today", j && j.today); }
 
   if (!API_URL) { showStats(null); }
   else {
-    var hit = function (kind) {
-      return api({ action: "hit", kind: kind, vid: vid }).then(showStats).catch(function () { showStats(null); });
+    var hit = function (kind, beats) {
+      return api({ action: "hit", kind: kind, vid: vid, beats: beats || 1 }).then(showStats).catch(function () { showStats(null); });
     };
     hit("enter");
-    var visibleMs = 0, STEP = 5000;
-    setInterval(function () {
-      if (document.visibilityState !== "visible") return;
-      visibleMs += STEP;
-      if (visibleMs >= BEAT_MS) { visibleMs = 0; hit("beat"); }
-    }, STEP);
+    // Accumulate elapsed time only while visible. A wall-clock timestamp is
+    // essential here: a throttled timer must never turn hidden time into a beat.
+    var visibleMs = 0, lastVisibleAt = document.visibilityState === "visible" ? Date.now() : null;
+    function accrueVisible(now, includeHideBoundary) {
+      if (document.visibilityState !== "visible" && !includeHideBoundary) return;
+      if (lastVisibleAt === null) lastVisibleAt = now;
+      visibleMs += Math.max(0, now - lastVisibleAt);
+      lastVisibleAt = now;
+      if (visibleMs >= BEAT_MS) {
+        var beats = Math.min(60, Math.floor(visibleMs / BEAT_MS));
+        visibleMs %= BEAT_MS;
+        hit("beat", beats);
+      }
+    }
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") lastVisibleAt = Date.now();
+      else if (lastVisibleAt !== null) { accrueVisible(Date.now(), true); lastVisibleAt = null; }
+    });
+    setInterval(function () { accrueVisible(Date.now()); }, 1000);
   }
 
   /* ===== الوضع التجريبي: واجهة رئيسية ===== */
