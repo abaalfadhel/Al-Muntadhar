@@ -5,7 +5,9 @@
  */
 var OWNER_EMAIL = 'abaalfadheln@gmail.com';
 var TZ = 'Asia/Baghdad';
-var MIN_GAP_MS = 150 * 1000; // أقل فاصل مقبول بين عدّتين لنفس الزائر (حماية من التلاعب)
+var HEARTBEAT_MIN_GAP_MS = 8 * 1000; // هامش تسامح بسيط حول نبضات الـ10 ثوانٍ
+var ENTER_WEIGHT = 10; // كل دخول أو تحديث يُحتسب 10 زيارات
+var HEARTBEAT_WEIGHT = 10; // كل نبضة بقاء فعلية تُحتسب 10 زيارات
 
 // مزوّدو البريد المسموحون فقط (يجب أن تطابق القائمة في script.js)
 var ALLOWED_DOMAINS = [
@@ -45,27 +47,34 @@ function sheet_(name, header) {
   return sh;
 }
 
-// تسجيل زيارة: kind=enter عند الدخول، kind=beat كل 3 دقائق بقاء فعلي
+// تسجيل زيارة: kind=enter عند الدخول، kind=beat كل 10 ثوانٍ بقاء فعلي
 function hit_(p) {
   var vid = String(p.vid || '');
   if (!/^[a-z0-9]{8,32}$/.test(vid)) return stats_();
-  var cache = CacheService.getScriptCache();
-  var key = 'h_' + vid;
-  var last = parseInt(cache.get(key) || '0', 10);
-  var now = Date.now();
-  if (last && now - last < MIN_GAP_MS) return stats_(); // مكرر/سريع: لا يُحتسب
+  var isEnter = p.kind === 'enter';
+  if (!isEnter && p.kind !== 'beat') return stats_();
+  var beats = isEnter ? 1 : Number(p.beats || 1);
+  if (beats < 1 || beats > 60 || Math.floor(beats) !== beats) return stats_();
 
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
+    // Read and write the guard under the same lock as the counters. This
+    // prevents concurrent requests from both passing the heartbeat check.
+    var cache = CacheService.getScriptCache();
+    var key = 'h_' + vid;
+    var now = Date.now();
+    var last = parseInt(cache.get(key) || '0', 10);
+    if (!isEnter && last && now - last < HEARTBEAT_MIN_GAP_MS) return stats_();
     var pr = PropertiesService.getScriptProperties();
-    var total = parseInt(pr.getProperty('total') || '0', 10) + 1;
+    var weight = isEnter ? ENTER_WEIGHT : HEARTBEAT_WEIGHT * beats;
+    var total = parseInt(pr.getProperty('total') || '0', 10) + weight;
     var dk = 'd_' + today_();
-    var day = parseInt(pr.getProperty(dk) || '0', 10) + 1;
+    var day = parseInt(pr.getProperty(dk) || '0', 10) + weight;
     pr.setProperty('total', String(total));
     pr.setProperty(dk, String(day));
 
-    if (p.kind === 'enter') {
+    if (isEnter) {
       var vids = sheet_('vids', ['vid', 'first_seen']);
       var found = vids.getRange('A:A').createTextFinder(vid).matchEntireCell(true).findNext();
       if (!found) {
