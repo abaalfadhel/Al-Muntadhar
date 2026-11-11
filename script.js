@@ -104,7 +104,7 @@
     if (typeof val === "number") { el.textContent = nf.format(val); el.dataset.state = "ok"; }
     else { el.textContent = "—"; el.dataset.state = "off"; }
   }
-  function showStats(j) { setStat("st-total", j && j.total); setStat("st-today", j && j.today); }
+  function showStats(j) { setStat("st-total", j && j.total); }
 
   if (!API_URL) { showStats(null); }
   else {
